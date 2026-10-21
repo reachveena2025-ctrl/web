@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Simple Calculator</title>
+	<style>
+		* { box-sizing: border-box; }
+		body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 20px; background: #eef2f7; font-family: Arial, sans-serif; }
+		.calculator { width: min(100%, 340px); padding: 20px; border-radius: 16px; background: #202938; box-shadow: 0 12px 32px #17203330; }
+		#display { width: 100%; height: 76px; margin-bottom: 14px; padding: 12px; border: 0; border-radius: 9px; background: #f8fafc; color: #172033; font-size: 2rem; text-align: right; }
+		.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+		button { min-height: 56px; border: 0; border-radius: 9px; background: #344155; color: white; font-size: 1.2rem; cursor: pointer; }
+		button:hover { filter: brightness(1.15); }
+		.operator { background: #5367e8; }
+		.utility { background: #657286; }
+		.equals { background: #19a875; grid-row: span 2; }
+		.zero { grid-column: span 2; }
+		.hint { margin: 13px 0 0; color: #c5cedb; text-align: center; font-size: .78rem; }
+	</style>
+</head>
+<body>
+	<main class="calculator" aria-label="Calculator">
+		<input id="display" type="text" value="0" readonly aria-label="Calculator display">
+		<div class="keys">
+			<button class="utility" data-action="clear">AC</button>
+			<button class="utility" data-action="backspace" aria-label="Backspace">⌫</button>
+			<button class="operator" data-value="/">÷</button>
+			<button class="operator" data-value="*">×</button>
+			<button data-value="7">7</button><button data-value="8">8</button><button data-value="9">9</button><button class="operator" data-value="-">−</button>
+			<button data-value="4">4</button><button data-value="5">5</button><button data-value="6">6</button><button class="operator" data-value="+">+</button>
+			<button data-value="1">1</button><button data-value="2">2</button><button data-value="3">3</button><button class="equals" data-action="equals">=</button>
+			<button class="zero" data-value="0">0</button><button data-value=".">.</button>
+		</div>
+		<p class="hint">Keyboard: numbers, + − × ÷, Enter, Backspace, Esc</p>
+	</main>
+	<script>
+		const display = document.getElementById('display');
+		let expression = '';
+		let calculated = false;
+
+		function render() { display.value = expression || '0'; }
+
+		function input(value) {
+			if (/^\d$/.test(value)) {
+				if (calculated) expression = '';
+				calculated = false;
+				expression += value;
+			} else if (value === '.') {
+				if (calculated) expression = '';
+				calculated = false;
+				const current = expression.split(/[+\-*/]/).pop();
+				if (!current.includes('.')) expression += current ? '.' : '0.';
+			} else {
+				calculated = false;
+				if (!expression && value !== '-') return;
+				if (/[+\-*/]$/.test(expression)) expression = expression.slice(0, -1);
+				expression += value;
+			}
+			render();
+		}
+
+		// Parse arithmetic directly; do not evaluate arbitrary JavaScript.
+		function evaluate(source) {
+			const tokens = source.match(/(?:\d+\.?\d*|\.\d+)|[+\-*/]/g);
+			if (!tokens || tokens.join('') !== source || /[+\-*/]$/.test(source)) throw Error();
+			let position = 0;
+			function factor() {
+				if (tokens[position] === '-') { position++; return -factor(); }
+				if (tokens[position] === '+') { position++; return factor(); }
+				const value = Number(tokens[position++]);
+				if (!Number.isFinite(value)) throw Error();
+				return value;
+			}
+			function term() {
+				let value = factor();
+				while (tokens[position] === '*' || tokens[position] === '/') {
+					const operator = tokens[position++], next = factor();
+					value = operator === '*' ? value * next : value / next;
+				}
+				return value;
+			}
+			let result = term();
+			while (tokens[position] === '+' || tokens[position] === '-') {
+				const operator = tokens[position++], next = term();
+				result = operator === '+' ? result + next : result - next;
+			}
+			if (position !== tokens.length || !Number.isFinite(result)) throw Error();
+			return Number.parseFloat(result.toPrecision(12)).toString();
+		}
+
+		function calculate() {
+			if (!expression) return;
+			try {
+				expression = evaluate(expression);
+				calculated = true;
+				render();
+			} catch {
+				expression = '';
+				display.value = 'Error';
+				calculated = true;
+			}
+		}
+
+		function clear() { expression = ''; calculated = false; render(); }
+		function backspace() { expression = expression.slice(0, -1); calculated = false; render(); }
+
+		document.querySelector('.keys').addEventListener('click', event => {
+			const button = event.target.closest('button');
+			if (!button) return;
+			if (button.dataset.action === 'clear') clear();
+			else if (button.dataset.action === 'backspace') backspace();
+			else if (button.dataset.action === 'equals') calculate();
+			else input(button.dataset.value);
+		});
+
+		document.addEventListener('keydown', event => {
+			if (/^[0-9.]$/.test(event.key) || /^[+\-*/]$/.test(event.key)) input(event.key);
+			else if (event.key === 'Enter' || event.key === '=') { event.preventDefault(); calculate(); }
+			else if (event.key === 'Backspace') { event.preventDefault(); backspace(); }
+			else if (event.key === 'Escape' || event.key.toLowerCase() === 'c') clear();
+		});
+	</script>
+</body>
+</html>
